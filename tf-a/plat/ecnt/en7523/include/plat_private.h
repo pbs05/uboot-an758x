@@ -77,6 +77,9 @@ int get_freq_sel(void);
 void fill_secure_data(uint8_t *p_data, uint8_t offset, size_t len);
 int efuse_init(void);
 void plat_ecnt_io_setup(const hw_trap_t *hw_trap);
+#if defined(IMAGE_BL23)
+int plat_ecnt_fip_uses_ubi(void);
+#endif
 int plat_check_bypass(void);
 #ifdef TCSUPPORT_ARM_SECURE_BOOT_FLASH_KEY
 int plat_check_secure_boot_flash_key(void);

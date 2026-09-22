@@ -315,6 +315,17 @@ void plat_ecnt_io_switch_to_memmap(void)
 {
 	policies[FIP_IMAGE_ID] = &fip_memmap_policy;
 }
+
+/*
+ * Report whether the FIP is loaded from the UBI 'fip' volume rather than from
+ * the pre-loaded memmap window.  The memmap pre-load describes the boot
+ * partition layout only; when UBI owns the FIP the image loader reads the
+ * volume directly, so the window is neither needed nor meaningful.
+ */
+int plat_ecnt_fip_uses_ubi(void)
+{
+	return policies[FIP_IMAGE_ID] == &fip_ubi_policy;
+}
 #endif
 
 void plat_ecnt_io_setup(const hw_trap_t *hw_trap)
