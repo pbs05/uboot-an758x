@@ -1381,7 +1381,7 @@ static int airoha_nfc_block_bad(struct mtd_info *mtd, loff_t ofs)
 	struct nand_chip *nand = mtd_to_nand(mtd);
 	struct mtd_oob_ops ops;
 	int ret, i = 0;
-	u16 bad;
+	u16 bad = 0xffff;
 
 	memset(&ops, 0, sizeof(ops));
 	ops.oobbuf = (uint8_t *)&bad;
@@ -1402,10 +1402,19 @@ static int airoha_nfc_block_bad(struct mtd_info *mtd, loff_t ofs)
 		if (ret)
 			return ret;
 
-		if (likely(nand->badblockbits == 8))
-			ret = bad != 0xFF;
-		else
-			ret = hweight8(bad) < nand->badblockbits;
+		/*
+		 * An 8-bit bus fills in the low byte only.  Comparing the whole
+		 * 16-bit value let the untouched high byte decide the result and
+		 * reported good blocks as bad.
+		 */
+		if (likely(nand->badblockbits == 8)) {
+			if (nand->options & NAND_BUSWIDTH_16)
+				ret = bad != 0xffff;
+			else
+				ret = (bad & 0xff) != 0xff;
+		} else {
+			ret = hweight8(bad & 0xff) < nand->badblockbits;
+		}
 
 		i++;
 		ofs += mtd->writesize;
