@@ -51,7 +51,7 @@ struct nand_flash_dev nand_flash_ids[] = {
 	{"S34ML02G300TFI00 2G 3.3V 8-bit",
 		{ .id = {0x01, 0xda, 0x00, 0x95, 0x46} },
 		  SZ_2K, SZ_256, SZ_128K, 0, 5, 128,
-		  NAND_ECC_INFO(8, SZ_512), 0 },
+		  NAND_ECC_INFO(4, SZ_512), 0 },
 	{"TC58NVG2S0F 4G 3.3V 8-bit",
 		{ .id = {0x98, 0xdc, 0x90, 0x26, 0x76, 0x15, 0x01, 0x08} },
 		  SZ_4K, SZ_512, SZ_256K, 0, 8, 224, NAND_ECC_INFO(4, SZ_512) },
