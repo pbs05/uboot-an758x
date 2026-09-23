@@ -138,9 +138,11 @@ jobs:
           if-no-files-found: error
 
   release:
-    # 仅 tag 推送 或 手动运行且填写了 release_tag 时发布；PR 只构建不发布
+    # tag 推送 / PR / 手动运行（填写 release_tag）时发布；仓库分支更新不发布
+    # 注意：来自 fork 的 PR 因 GITHUB_TOKEN 只读，会在下面自动跳过发布
     if: |
       startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
     needs: [prepare, build]
     runs-on: ubuntu-24.04
@@ -166,8 +168,22 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
-          if [ "$EVENT" = "workflow_dispatch" ]; then
+          echo "fork=$IS_FORK" >> "$GITHUB_OUTPUT"
+
+          if [ "$EVENT" = "pull_request" ]; then
+            # PR 构建：使用 pr-<编号> 作为滚动 Tag，同一 PR 反复推送只会保留一条 Release
+            echo "name=pr-$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "title=PR #$PR_NUMBER: $PR_TITLE" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "label=测试发布（PR 构建）" >> "$GITHUB_OUTPUT"
+            echo "trigger=PR #$PR_NUMBER（$PR_BRANCH 分支，@$PR_AUTHOR）" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
             # 手动运行：发布类型由输入决定
             echo "name=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
             echo "title=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
@@ -188,6 +204,21 @@ jobs:
             echo "trigger=Tag 推送（$REF_NAME）" >> "$GITHUB_OUTPUT"
           fi
 
+      # PR 场景：pr-<编号> 是滚动 Tag，先清掉上一次的 Release 与 Tag，确保只保留最新一次构建
+      - name: Prepare PR release tag
+        if: github.event_name == 'pull_request' && steps.meta.outputs.fork != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.name }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "删除上一次 PR 构建的 Release: $TAG"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes || true
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git push --delete origin "refs/tags/$TAG" || true
+          fi
+
       - name: Build release title
         id: title
         env:
@@ -196,7 +227,10 @@ jobs:
           TAG: ${{ steps.meta.outputs.name }}
           EVENT: ${{ github.event_name }}
         run: |
-          if [ -n "$INPUT_TITLE" ]; then
+          if [ "$EVENT" = "pull_request" ]; then
+            # PR 场景：meta.title 已是 "PR #N: 标题"
+            TITLE="$INPUT_TITLE"
+          elif [ -n "$INPUT_TITLE" ]; then
             TITLE="$INPUT_TITLE"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             TITLE="$TAG"
@@ -218,13 +252,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MANUAL_NOTES: ${{ github.event.inputs.release_notes }}
           CURRENT_TAG: ${{ steps.meta.outputs.name }}
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -e
           NOTES_FILE="changelog.md"
           : > "$NOTES_FILE"
 
+          # 0) PR 构建：直接用该 PR 的信息生成
+          if [ "$EVENT" = "pull_request" ]; then
+            {
+              echo "## What's Changed"
+              echo ""
+              echo "* $PR_TITLE by @$PR_AUTHOR in [#$PR_NUMBER]($PR_URL)"
+              echo ""
+              echo "<details><summary>本 PR 包含的提交</summary>"
+              echo ""
+              gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json commits \
+                --template '{{range .commits}}* {{.messageHeadline}}{{"\n"}}{{end}}' 2>/dev/null || true
+              echo ""
+              echo "</details>"
+            } >> "$NOTES_FILE"
+            SKIP_REST=1
+          fi
+
           # 1) 手动填写的更新内容
-          if [ -n "$MANUAL_NOTES" ]; then
+          if [ "${SKIP_REST:-0}" = "1" ]; then
+            echo "使用 PR 信息作为更新内容"
+          elif [ -n "$MANUAL_NOTES" ]; then
             {
               echo "## What's Changed"
               echo ""
@@ -299,7 +359,21 @@ jobs:
           echo "----- changelog -----"
           cat "$NOTES_FILE"
 
+      # fork 来的 PR：GITHUB_TOKEN 只有读权限，无法创建 Release，明确跳过而不是报错
+      - name: Skip release for forked PR
+        if: github.event_name == 'pull_request' && steps.meta.outputs.fork == 'true'
+        run: |
+          echo "::warning::该 PR 来自 fork，GITHUB_TOKEN 无写权限，跳过发布 Release。构建产物仍可在 Actions 页面下载。"
+          {
+            echo "### Release 结果"
+            echo ""
+            echo ":warning: 该 PR 来自 fork 仓库，Workflow 权限为只读，已跳过发布 Release。"
+            echo ""
+            echo "构建产物请在 Actions 页面的 Artifacts 中下载。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create or update release
+        if: steps.meta.outputs.fork != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -329,6 +403,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY"
 
       - name: Summary
+        if: steps.meta.outputs.fork != 'true'
         run: |
           {
             echo "### Release 结果"
@@ -340,4 +415,8 @@ jobs:
             echo "- 构建机型: ${{ needs.prepare.outputs.targets_display }}"
             echo "- Commit: \`${{ github.sha }}\`"
             echo "- Pre-release: \`${{ steps.meta.outputs.prerelease }}\`"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo ""
+              echo "> 该 Release 属于 PR 临时构建，PR 合并后请打 tag 发布正式版本。"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
