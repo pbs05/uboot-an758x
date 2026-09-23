@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+#include "an7581-u-boot.dtsi"
+#include "an758x-recovery-layout-u-boot.dtsi"
+
+status_led: &{/leds/led-power} {
+};
+
+#include "an758x-status-led-u-boot.dtsi"
+
+&recovery_layout {
+	/*
+	 * TODO(bring-up): size and type must match the stock board-data
+	 * partition. 0x200000 static is what most 256 MiB boards use;
+	 * check "factory" in the stock UBI layout before flashing.
+	 */
+	factory {
+		volume-name = "factory";
+		volume-size = <0x200000>;
+		volume-type = "static";
+		bootph-all;
+	};
+};
+
+&spi_nand {
+	/* Keep the board-specific NAND compatible selected during U-Boot fixups. */
+	compatible = "winbond,w25n02kv", "spi-nand";
+};
+
+&gdm1 {
+	/* Recovery networking requires gdm1 before relocation. */
+	status = "okay";
+	bootph-all;
+};

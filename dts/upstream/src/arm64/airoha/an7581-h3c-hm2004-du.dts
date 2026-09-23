@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/* BL2 and TF-A reserve the first 2 MiB of DRAM. */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include "en7581.dtsi"
+
+/ {
+	model = "H3C HM2004-DU";
+	/* AN7581CT (EN7581 family). */
+	compatible = "h3c,hm2004-du", "airoha,an7581", "airoha,en7581";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	/* 512 MiB is the fallback until BL2 publishes the detected capacity. */
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x20000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		/*
+		 * TODO(bring-up): confirm the GPIO line from the stock firmware
+		 * or by probing. Every other AN7581 board labels the power LED
+		 * green:power; keep the name in sync with
+		 * arch/arm/dts/an7581-h3c-hm2004-du-u-boot.dtsi (status_led) and
+		 * with bootled_status in the board env file.
+		 */
+		led-power {
+			label = "green:power";
+			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+	};
+};
+
+&en7581_pinctrl {
+	gpio-ranges = <&en7581_pinctrl 0 13 50>;
+};
+
+&snfi {
+	status = "okay";
+};
+
+&spi_nand {
+	/*
+	 * TODO(bring-up): 256 MiB (2 GiB-bit) SPI-NAND. Read the JEDEC ID from
+	 * the U-Boot log and replace this compatible with the real part, e.g.
+	 *   "winbond,w25n02kv" / "esmt,f50l2g41xa" / "macronix,mx35lf2ge4ad"
+	 */
+	compatible = "winbond,w25n02kv", "spi-nand";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bl2";
+			/* BootROM reads the BL2 FIP at offset 0x800 in the first eraseblock. */
+			reg = <0x00000000 0x00020000>;
+		};
+
+		partition@20000 {
+			label = "ubi";
+			/* A zero length applies the MTD MTDPART_SIZ_FULL convention. */
+			reg = <0x00020000 0x00000000>;
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+/*
+ * U-Boot recovery only needs gdm1 (internal fixed-link to the switch), so the
+ * 2.5G EN8811H PHY and the three GE switch ports are intentionally left out of
+ * this tree; they belong to the Linux DTS (target/linux/airoha/dts).
+ */
+&gdm1 {
+	status = "okay";
+};
