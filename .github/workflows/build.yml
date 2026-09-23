@@ -3,8 +3,8 @@ name: Build AN758x U-Boot
 on:
   push:
     branches:
-      - main
       - cs
+      - main
     tags:
       - 'v*'
   pull_request:
