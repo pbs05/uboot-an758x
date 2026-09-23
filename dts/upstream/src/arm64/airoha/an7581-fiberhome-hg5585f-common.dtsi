@@ -60,7 +60,12 @@
 	pnand: nand-controller@1fa11000 {
 		compatible = "airoha,en7581-nfc";
 		reg = <0x0 0x1fa11000 0x0 0x600>;
-		clocks = <&scuclk EN7523_CLK_SPI>;
+		/*
+		 * EN7581 parallel NFI is clocked by the APB bus clock (150 MHz),
+		 * not the SPI clock. The DE-approved ACCCON timing assumes this
+		 * 150 MHz reference; EN7523_CLK_SPI (10 MHz default) is wrong.
+		 */
+		clocks = <&scuclk EN7523_CLK_BUS>;
 		clock-names = "nfi_clk";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pnand_pins>;

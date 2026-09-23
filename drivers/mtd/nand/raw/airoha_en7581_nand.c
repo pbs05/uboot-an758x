@@ -199,6 +199,14 @@
 	 FIELD_PREP(ACCCON_WST, twst) | \
 	 FIELD_PREP(ACCCON_RLT, trlt))
 
+/*
+ * DE-approved EN7581 NFI access timing for the 150 MHz APB clock. BootROM
+ * leaves NFI_ACCCON at the reset default (0xf3ffffff, all fields maxed to the
+ * slowest setting), so the driver programs it here. Matches the value tf-a
+ * carries as PARALLEL_NAND_FLASH_TIMING (TCSUPPORT_CPU_ARMV8 branch).
+ */
+#define NFI_ACCCON_EN7581		0x40044326
+
 #define MASTER_STA_MASK			(MAS_ADDR | MAS_RD | MAS_WR | \
 					 MAS_RDDLY)
 #define NFI_RESET_TIMEOUT		1000000
@@ -359,12 +367,10 @@ static void airoha_nfc_hw_reset(struct airoha_nfc *nfc)
 
 static inline void airoha_nfc_hw_init(struct airoha_nfc *nfc)
 {
-	/*
-	 * BootROM programs ACCCON for the board NAND and controller clock.
-	 * Reprogramming it before READID can move the data sampling window.
-	 */
 	nfi_write16(nfc, NFI_CNRNB, CB2R_TIME | STR_CNRNB);
 	airoha_nfc_hw_reset(nfc);
+	/* Program the DE-approved EN7581 timing; BootROM only left the reset default. */
+	nfi_write32(nfc, NFI_ACCCON, NFI_ACCCON_EN7581);
 	nfi_write32(nfc, NFI_INTR_EN, INTR_AHB_DONE);
 }
 
@@ -1462,6 +1468,9 @@ static int airoha_nfc_init_chip(struct airoha_nfc *nfc)
 	printf("EN7581 parallel NAND: ID %02x:%02x, page %u, OOB %u, erase %u\n",
 	       nand->id.data[0], nand->id.data[1], mtd->writesize,
 	       mtd->oobsize, mtd->erasesize);
+	printf("EN7581 parallel NAND: onfi_ver=%d ecc_strength_ds=%u onfi_ecc_bits=%u\n",
+	       nand->onfi_version, nand->ecc_strength_ds,
+	       nand->onfi_params.ecc_bits);
 
 	ret = airoha_nfc_attach_chip(nand);
 	if (ret) {
@@ -1519,9 +1528,22 @@ static int airoha_nfc_probe(struct udevice *dev)
 	}
 	nand_set_flash_node(&nfc->nand, flash_node);
 
-	printf("EN7581 NFI: mode=0x%08x acccon=0x%08x clock=%lu Hz\n",
-	       nfi_read32(nfc, NFI_MODE), nfi_read32(nfc, NFI_ACCCON),
-	       clock_rate);
+	{
+		u32 acccon = nfi_read32(nfc, NFI_ACCCON);
+		u32 wh = FIELD_GET(ACCCON_WH, acccon);
+		u32 wst = FIELD_GET(ACCCON_WST, acccon);
+		u32 rlt = FIELD_GET(ACCCON_RLT, acccon);
+		u32 wr_mhz_x10, rd_mhz_x10;
+
+		wr_mhz_x10 = (u32)((u64)clock_rate * 10 / (wh + wst) / 1000000);
+		rd_mhz_x10 = (u32)((u64)clock_rate * 10 / rlt / 1000000);
+
+		printf("EN7581 NFI: mode=0x%08x acccon=0x%08x clock=%lu Hz\n",
+		       nfi_read32(nfc, NFI_MODE), acccon, clock_rate);
+		printf("  NAND bus: write %u.%u MHz (WH+WST=%u), read %u.%u MHz (RLT=%u)\n",
+		       wr_mhz_x10 / 10, wr_mhz_x10 % 10, wh + wst,
+		       rd_mhz_x10 / 10, rd_mhz_x10 % 10, rlt);
+	}
 	if (nfi_read32(nfc, NFI_MODE) & NFI_MODE_SERIAL) {
 		dev_err(dev, "NFI is configured for serial NAND\n");
 		return -ENODEV;
