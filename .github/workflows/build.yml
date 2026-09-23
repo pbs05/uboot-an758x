@@ -26,6 +26,10 @@ on:
         options:
           - test
           - release
+      build_targets:
+        description: '构建机型：逗号分隔，如 hg5382a,xg2010g；填 all 或留空则构建全部'
+        required: false
+        default: 'all'
       release_notes:
         description: '更新内容（What''s Changed），可留空自动生成；每行一条，例如：Add xxx support by @user in #2'
         required: false
@@ -34,23 +38,79 @@ on:
 permissions:
   contents: read
 jobs:
+  # 计算本次要构建的机型：手动运行按输入过滤，其余事件构建全部
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      targets: ${{ steps.targets.outputs.value }}
+      targets_display: ${{ steps.targets.outputs.display }}
+    steps:
+      - name: Resolve build targets
+        id: targets
+        env:
+          INPUT_TARGETS: ${{ github.event.inputs.build_targets }}
+        run: |
+          set -euo pipefail
+          ALL_TARGETS="hg5382a hg5585f-ct hg5585f-cu xg2010g zn504xg-d zn515xg-d ung00a xg-040g-md xg-040g-tf xg-040g-mf"
+
+          # 逗号 / 空格 / 分号 / 换行 / 字面 \n 都当作分隔符
+          RAW="$(printf '%s' "$INPUT_TARGETS" | tr -d '\r' | sed 's/\\n/\n/g; s/[,;]/\n/g; s/[[:space:]]\+/\n/g')"
+
+          SELECTED=""
+          INVALID=""
+          for t in $RAW; do
+            case "$t" in
+              all|ALL|All|'') continue ;;
+            esac
+            ok=0
+            for a in $ALL_TARGETS; do
+              [ "$t" = "$a" ] && ok=1
+            done
+            if [ "$ok" = "1" ]; then
+              # 去重，避免同一个机型重复构建
+              case " $SELECTED " in
+                *" $t "*) ;;
+                *) SELECTED="$SELECTED $t" ;;
+              esac
+            else
+              INVALID="$INVALID $t"
+            fi
+          done
+
+          if [ -n "$INVALID" ]; then
+            echo "::error::未知的机型:$INVALID"
+            echo "::error::可选机型:$ALL_TARGETS"
+            exit 1
+          fi
+
+          # 留空 / 填 all → 全部机型
+          if [ -z "$SELECTED" ]; then
+            SELECTED="$ALL_TARGETS"
+          fi
+
+          JSON=""
+          DISPLAY=""
+          for t in $SELECTED; do
+            JSON="$JSON${JSON:+,}\"$t\""
+            DISPLAY="$DISPLAY${DISPLAY:+, }$t"
+          done
+
+          echo "value=[$JSON]" >> "$GITHUB_OUTPUT"
+          echo "display=$DISPLAY" >> "$GITHUB_OUTPUT"
+          echo "本次构建机型: $DISPLAY"
+          {
+            echo "### 构建机型"
+            echo ""
+            echo "$DISPLAY" | tr ',' '\n' | sed 's/^[[:space:]]*/* /'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build:
+    needs: prepare
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - hg5382a
-          - hg5585f-ct
-          - hg5585f-cu
-          - xg2010g
-          - zn504xg-d
-          - zn515xg-d
-          - ung00a
-          - xg-040g-md
-          - xg-040g-tf
-          - xg-040g-mf
-          - hm2004-du
+        target: ${{ fromJSON(needs.prepare.outputs.targets) }}
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
@@ -84,7 +144,7 @@ jobs:
     if: |
       github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -269,6 +329,7 @@ jobs:
             echo ""
             echo "- 发布类型：**${{ steps.meta.outputs.label }}**"
             echo "- 触发方式：${{ steps.meta.outputs.trigger }}"
+            echo "- 构建机型：${{ needs.prepare.outputs.targets_display }}"
             echo "- Commit：\`${{ github.sha }}\`"
             echo "- 构建任务：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> "$NOTES_FILE"
@@ -314,6 +375,7 @@ jobs:
             echo "- 标题: ${{ steps.title.outputs.value }}"
             echo "- 发布类型: ${{ steps.meta.outputs.label }}"
             echo "- 触发方式: ${{ steps.meta.outputs.trigger }}"
+            echo "- 构建机型: ${{ needs.prepare.outputs.targets_display }}"
             echo "- Commit: \`${{ github.sha }}\`"
             echo "- Pre-release: \`${{ steps.meta.outputs.prerelease }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
