@@ -49,6 +49,7 @@ jobs:
           - xg-040g-md
           - xg-040g-tf
           - xg-040g-mf
+          - hm2004-du
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
