@@ -27,7 +27,7 @@ on:
           - test
           - release
       build_targets:
-        description: '构建机型：逗号分隔，如 hg5382a,xg2010g；填 all 或留空则构建全部'
+        description: '构建机型：逗号分隔，如 hm2004-du,hg5382a,xg2010g；填 all 或留空则构建全部'
         required: false
         default: 'all'
       release_notes:
