@@ -2,9 +2,7 @@ name: Build AN758x U-Boot
 
 on:
   push:
-    branches:
-      - cs
-      - main
+    # 仅 tag 推送触发（仓库分支更新不触发）；分支更新由 PR 构建覆盖
     tags:
       - 'v*'
   pull_request:
@@ -27,7 +25,7 @@ on:
           - test
           - release
       build_targets:
-        description: '构建机型：逗号分隔，如 hg5382a,xg2010g；填 all 或留空则构建全部'
+        description: '构建机型：逗号分隔，如 hm2004-du,hg5382a,xg2010g；填 all 或留空则构建全部'
         required: false
         default: 'all'
       release_notes:
@@ -51,7 +49,7 @@ jobs:
           INPUT_TARGETS: ${{ github.event.inputs.build_targets }}
         run: |
           set -euo pipefail
-          ALL_TARGETS="hg5382a hg5585f-ct hg5585f-cu xg2010g zn504xg-d zn515xg-d ung00a xg-040g-md xg-040g-tf xg-040g-mf"
+          ALL_TARGETS="hm2004-du hg5382a hg5585f-ct hg5585f-cu xg2010g zn504xg-d zn515xg-d ung00a xg-040g-md xg-040g-tf xg-040g-mf"
 
           # 逗号 / 空格 / 分号 / 换行 / 字面 \n 都当作分隔符
           RAW="$(printf '%s' "$INPUT_TARGETS" | tr -d '\r' | sed 's/\\n/\n/g; s/[,;]/\n/g; s/[[:space:]]\+/\n/g')"
@@ -140,18 +138,14 @@ jobs:
           if-no-files-found: error
 
   release:
-    # push（分支更新 / tag push）或手动运行且填写了 release_tag 时执行；PR 只构建不发布
+    # 仅 tag 推送 或 手动运行且填写了 release_tag 时发布；PR 只构建不发布
     if: |
-      github.event_name == 'push' ||
+      startsWith(github.ref, 'refs/tags/') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
     needs: [prepare, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-
-    env:
-      # 仓库更新（分支 push）自动构建使用的滚动 Tag，可在仓库 Settings → Variables 里改
-      AUTO_RELEASE_TAG: ${{ vars.AUTO_RELEASE_TAG || 'nightly' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -171,9 +165,7 @@ jobs:
         id: meta
         env:
           EVENT: ${{ github.event_name }}
-          REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
-          AUTO_TAG: ${{ vars.AUTO_RELEASE_TAG || 'nightly' }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ]; then
             # 手动运行：发布类型由输入决定
@@ -187,38 +179,14 @@ jobs:
               echo "label=测试发布（手动）" >> "$GITHUB_OUTPUT"
             fi
             echo "trigger=手动运行" >> "$GITHUB_OUTPUT"
-          elif [ "$REF_TYPE" = "tag" ]; then
-            # 自动构建：tag push，一律按测试发布
+          else
+            # 自动构建：tag 推送，一律按测试发布并标注自动构建
             echo "name=$REF_NAME" >> "$GITHUB_OUTPUT"
             echo "title=" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "label=测试发布（自动构建）" >> "$GITHUB_OUTPUT"
             echo "trigger=Tag 推送（$REF_NAME）" >> "$GITHUB_OUTPUT"
-          else
-            # 自动构建：仓库更新（分支 push），一律按测试发布，使用滚动 Tag
-            echo "name=$AUTO_TAG" >> "$GITHUB_OUTPUT"
-            echo "title=" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "label=测试发布（自动构建）" >> "$GITHUB_OUTPUT"
-            echo "trigger=仓库更新（$REF_NAME 分支）" >> "$GITHUB_OUTPUT"
           fi
-
-      # 仓库更新场景：滚动 Tag 需要先删除旧的 Release 与 Tag，再指向本次 Commit
-      - name: Prepare rolling tag
-        if: github.event_name == 'push' && github.ref_type == 'branch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ steps.meta.outputs.name }}"
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "删除旧的自动构建 Release: $TAG"
-            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes || true
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            git push --delete origin "refs/tags/$TAG" || true
-          fi
-          git tag -f "$TAG" "$GITHUB_SHA"
-          git push -f origin "refs/tags/$TAG"
 
       - name: Build release title
         id: title
@@ -227,16 +195,13 @@ jobs:
           LABEL: ${{ steps.meta.outputs.label }}
           TAG: ${{ steps.meta.outputs.name }}
           EVENT: ${{ github.event_name }}
-          REF_TYPE: ${{ github.ref_type }}
         run: |
           if [ -n "$INPUT_TITLE" ]; then
             TITLE="$INPUT_TITLE"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             TITLE="$TAG"
-          elif [ "$REF_TYPE" = "tag" ]; then
-            TITLE="[自动构建] $TAG"
           else
-            TITLE="[自动构建] $TAG（最新仓库状态）"
+            TITLE="[自动构建] $TAG"
           fi
           # 测试发布统一加前缀，便于在 Release 列表里一眼区分
           case "$LABEL" in
@@ -253,7 +218,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MANUAL_NOTES: ${{ github.event.inputs.release_notes }}
           CURRENT_TAG: ${{ steps.meta.outputs.name }}
-          IS_ROLLING: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
         run: |
           set -e
           NOTES_FILE="changelog.md"
@@ -272,11 +236,9 @@ jobs:
             echo "使用手动填写的更新内容"
           else
             # 2) 自动从 PR 生成：找到上一个 Tag 作为起点
+            # 以上一个 Tag 为起点，展示未发布的改动
             PREV_TAG="$(git tag --sort=-creatordate | grep -v -x "$CURRENT_TAG" | head -1 || true)"
-            if [ -n "$PREV_TAG" ] && [ "$IS_ROLLING" != "true" ]; then
-              RANGE="$PREV_TAG..HEAD"
-            elif [ -n "$PREV_TAG" ]; then
-              # 滚动 Tag：以上一个正式 Tag 为起点，展示全部未发布改动
+            if [ -n "$PREV_TAG" ]; then
               RANGE="$PREV_TAG..HEAD"
             else
               RANGE="HEAD"
