@@ -74,14 +74,18 @@ jobs:
           if-no-files-found: error
 
   release:
-    # 关键改动：tag push 或 手动运行且填写了 release_tag 时都执行
+    # push（分支更新 / tag push）或手动运行且填写了 release_tag 时执行；PR 只构建不发布
     if: |
-      startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+
+    env:
+      # 仓库更新（分支 push）自动构建使用的滚动 Tag，可在仓库 Settings → Variables 里改
+      AUTO_RELEASE_TAG: ${{ vars.AUTO_RELEASE_TAG || 'nightly' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -99,9 +103,14 @@ jobs:
 
       - name: Determine release metadata
         id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          AUTO_TAG: ${{ vars.AUTO_RELEASE_TAG || 'nightly' }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # 手动运行：发布类型由输入决定，标题加 [测试] / 空前缀
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            # 手动运行：发布类型由输入决定
             echo "name=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
             echo "title=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
             if [ "${{ github.event.inputs.release_type }}" = "release" ]; then
@@ -111,13 +120,39 @@ jobs:
               echo "prerelease=true" >> "$GITHUB_OUTPUT"
               echo "label=测试发布（手动）" >> "$GITHUB_OUTPUT"
             fi
-          else
-            # 自动构建（tag push）：一律按测试发布，并标注为自动构建
-            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "trigger=手动运行" >> "$GITHUB_OUTPUT"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            # 自动构建：tag push，一律按测试发布
+            echo "name=$REF_NAME" >> "$GITHUB_OUTPUT"
             echo "title=" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "label=测试发布（自动构建）" >> "$GITHUB_OUTPUT"
+            echo "trigger=Tag 推送（$REF_NAME）" >> "$GITHUB_OUTPUT"
+          else
+            # 自动构建：仓库更新（分支 push），一律按测试发布，使用滚动 Tag
+            echo "name=$AUTO_TAG" >> "$GITHUB_OUTPUT"
+            echo "title=" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "label=测试发布（自动构建）" >> "$GITHUB_OUTPUT"
+            echo "trigger=仓库更新（$REF_NAME 分支）" >> "$GITHUB_OUTPUT"
           fi
+
+      # 仓库更新场景：滚动 Tag 需要先删除旧的 Release 与 Tag，再指向本次 Commit
+      - name: Prepare rolling tag
+        if: github.event_name == 'push' && github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.meta.outputs.name }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "删除旧的自动构建 Release: $TAG"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes || true
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git push --delete origin "refs/tags/$TAG" || true
+          fi
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$TAG"
 
       - name: Build release title
         id: title
@@ -126,13 +161,16 @@ jobs:
           LABEL: ${{ steps.meta.outputs.label }}
           TAG: ${{ steps.meta.outputs.name }}
           EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           if [ -n "$INPUT_TITLE" ]; then
             TITLE="$INPUT_TITLE"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             TITLE="$TAG"
-          else
+          elif [ "$REF_TYPE" = "tag" ]; then
             TITLE="[自动构建] $TAG"
+          else
+            TITLE="[自动构建] $TAG（最新仓库状态）"
           fi
           # 测试发布统一加前缀，便于在 Release 列表里一眼区分
           case "$LABEL" in
@@ -150,13 +188,14 @@ jobs:
           TITLE="${{ steps.title.outputs.value }}"
           PRERELEASE="${{ steps.meta.outputs.prerelease }}"
           LABEL="${{ steps.meta.outputs.label }}"
+          TRIGGER="${{ steps.meta.outputs.trigger }}"
           NOTES="release-notes.md"
 
           {
             echo "## 构建信息"
             echo ""
             echo "- 发布类型：**$LABEL**"
-            echo "- 触发方式：\`${{ github.event_name }}\`"
+            echo "- 触发方式：$TRIGGER"
             echo "- Commit：\`${{ github.sha }}\`"
             echo "- 构建任务：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } > "$NOTES"
@@ -168,6 +207,7 @@ jobs:
             gh release create "$TAG" release/* \
               --title "$TITLE" \
               --notes-file "$NOTES" \
+              --target "$GITHUB_SHA" \
               --repo "$GITHUB_REPOSITORY"
           fi
 
@@ -185,5 +225,7 @@ jobs:
             echo "- Tag: \`${{ steps.meta.outputs.name }}\`"
             echo "- 标题: ${{ steps.title.outputs.value }}"
             echo "- 发布类型: ${{ steps.meta.outputs.label }}"
+            echo "- 触发方式: ${{ steps.meta.outputs.trigger }}"
+            echo "- Commit: \`${{ github.sha }}\`"
             echo "- Pre-release: \`${{ steps.meta.outputs.prerelease }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
