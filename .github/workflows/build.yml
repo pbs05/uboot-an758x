@@ -25,6 +25,10 @@ on:
         options:
           - test
           - release
+      release_notes:
+        description: '更新内容（What''s Changed），可留空自动生成；每行一条，例如：Add xxx support by @user in #2'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -180,6 +184,96 @@ jobs:
           echo "Release 标题: $TITLE"
           echo "发布类型: $LABEL"
 
+      # 自动生成 What's Changed：手动填写优先，否则从上次发布以来的 PR 生成
+      - name: Generate changelog
+        id: changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANUAL_NOTES: ${{ github.event.inputs.release_notes }}
+          CURRENT_TAG: ${{ steps.meta.outputs.name }}
+          IS_ROLLING: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
+        run: |
+          set -e
+          NOTES_FILE="changelog.md"
+          : > "$NOTES_FILE"
+
+          # 1) 手动填写的更新内容
+          if [ -n "$MANUAL_NOTES" ]; then
+            {
+              echo "## What's Changed"
+              echo ""
+              # 支持换行 / 字面 \n / 分号 三种分隔方式，统一渲染成列表
+              printf '%s' "$MANUAL_NOTES" \
+                | sed 's/\\n/\n/g; s/;\s*/\n/g' \
+                | sed '/^[[:space:]]*$/d; s/^[[:space:]]*[*+-]\?[[:space:]]*/* /; s/^\* \* /* /'
+            } >> "$NOTES_FILE"
+            echo "使用手动填写的更新内容"
+          else
+            # 2) 自动从 PR 生成：找到上一个 Tag 作为起点
+            PREV_TAG="$(git tag --sort=-creatordate | grep -v -x "$CURRENT_TAG" | head -1 || true)"
+            if [ -n "$PREV_TAG" ] && [ "$IS_ROLLING" != "true" ]; then
+              RANGE="$PREV_TAG..HEAD"
+            elif [ -n "$PREV_TAG" ]; then
+              # 滚动 Tag：以上一个正式 Tag 为起点，展示全部未发布改动
+              RANGE="$PREV_TAG..HEAD"
+            else
+              RANGE="HEAD"
+            fi
+
+            echo "对比范围: ${PREV_TAG:-（全部历史）}..HEAD"
+
+            # 提取区间内 merge commit 对应的 PR 编号（去重、保持顺序）
+            PR_LIST="$(git log $RANGE --merges --pretty=format:'%s' 2>/dev/null \
+              | grep -oE 'Merge pull request #[0-9]+' \
+              | grep -oE '[0-9]+' | awk '!seen[$0]++' || true)"
+
+            if [ -n "$PR_LIST" ]; then
+              {
+                echo "## What's Changed"
+                echo ""
+              } >> "$NOTES_FILE"
+              for PR in $PR_LIST; do
+                INFO="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
+                  --json title,author \
+                  --template "{{.title}} by @{{.author.login}} in #$PR" 2>/dev/null || true)"
+                if [ -n "$INFO" ]; then
+                  echo "* $INFO" >> "$NOTES_FILE"
+                else
+                  echo "* #$PR" >> "$NOTES_FILE"
+                fi
+              done
+            else
+              # 没有 merge commit（例如 squash 合并）时退回 commit 列表
+              {
+                echo "## What's Changed"
+                echo ""
+                git log $RANGE --no-merges --pretty=format:'* %s by @%an' 2>/dev/null || true
+              } >> "$NOTES_FILE"
+            fi
+
+            # 完整变更对比链接
+            if [ -n "$PREV_TAG" ]; then
+              {
+                echo ""
+                echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$PREV_TAG...$CURRENT_TAG"
+              } >> "$NOTES_FILE"
+            fi
+          fi
+
+          # 3) 追加构建信息
+          {
+            echo ""
+            echo "## 构建信息"
+            echo ""
+            echo "- 发布类型：**${{ steps.meta.outputs.label }}**"
+            echo "- 触发方式：${{ steps.meta.outputs.trigger }}"
+            echo "- Commit：\`${{ github.sha }}\`"
+            echo "- 构建任务：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$NOTES_FILE"
+
+          echo "----- changelog -----"
+          cat "$NOTES_FILE"
+
       - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -187,21 +281,10 @@ jobs:
           TAG="${{ steps.meta.outputs.name }}"
           TITLE="${{ steps.title.outputs.value }}"
           PRERELEASE="${{ steps.meta.outputs.prerelease }}"
-          LABEL="${{ steps.meta.outputs.label }}"
-          TRIGGER="${{ steps.meta.outputs.trigger }}"
-          NOTES="release-notes.md"
-
-          {
-            echo "## 构建信息"
-            echo ""
-            echo "- 发布类型：**$LABEL**"
-            echo "- 触发方式：$TRIGGER"
-            echo "- Commit：\`${{ github.sha }}\`"
-            echo "- 构建任务：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          } > "$NOTES"
+          NOTES="changelog.md"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists, updating assets..."
+            echo "Release $TAG already exists, updating assets and notes..."
             gh release upload "$TAG" release/* --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" release/* \
@@ -210,6 +293,9 @@ jobs:
               --target "$GITHUB_SHA" \
               --repo "$GITHUB_REPOSITORY"
           fi
+
+          # 已存在的 Release 也同步更新正文，保证 What's Changed 与本次构建一致
+          gh release edit "$TAG" --notes-file "$NOTES" --repo "$GITHUB_REPOSITORY"
 
           # 统一设置 prerelease 标记（新建和已存在两种情况都覆盖）
           gh release edit "$TAG" \
