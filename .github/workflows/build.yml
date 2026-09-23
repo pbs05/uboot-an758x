@@ -3,6 +3,7 @@ name: Build AN758x U-Boot
 on:
   push:
     branches:
+      - cs
       - main
     tags:
       - 'v*'
@@ -50,7 +51,7 @@ jobs:
           INPUT_TARGETS: ${{ github.event.inputs.build_targets }}
         run: |
           set -euo pipefail
-          ALL_TARGETS="hg5382a hg5585f-ct hg5585f-cu xg2010g zn504xg-d zn515xg-d ung00a xg-040g-md xg-040g-tf xg-040g-mf"
+          ALL_TARGETS="hm2004-du hg5382a hg5585f-ct hg5585f-cu xg2010g zn504xg-d zn515xg-d ung00a xg-040g-md xg-040g-tf xg-040g-mf"
 
           # 逗号 / 空格 / 分号 / 换行 / 字面 \n 都当作分隔符
           RAW="$(printf '%s' "$INPUT_TARGETS" | tr -d '\r' | sed 's/\\n/\n/g; s/[,;]/\n/g; s/[[:space:]]\+/\n/g')"
