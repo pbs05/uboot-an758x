@@ -2,12 +2,24 @@ name: Build AN758x U-Boot
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '手动运行时创建的 Release Tag（留空则只构建不发布）'
+        required: false
+        default: ''
+      release_name:
+        description: 'Release 标题（留空则使用 Tag 名）'
+        required: false
+        default: ''
 
 permissions:
   contents: read
-
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -25,10 +37,8 @@ jobs:
           - xg-040g-md
           - xg-040g-tf
           - xg-040g-mf
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -36,13 +46,11 @@ jobs:
             build-essential bc bison ca-certificates curl device-tree-compiler flex \
             gcc-aarch64-linux-gnu gcc-arm-none-eabi libssl-dev \
             python3 python3-pyelftools swig
-
       - name: Download Mbed TLS
         run: |
           curl -L https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.4.1.tar.gz |
             tar -xz
           echo "MBEDTLS_DIR=$PWD/mbedtls-3.4.1" >> "$GITHUB_ENV"
-
       - name: Build ${{ matrix.target }}
         env:
           CROSS_COMPILE: aarch64-linux-gnu-
@@ -50,7 +58,6 @@ jobs:
           BUILD_JOBS: 4
           AIROHA_SIGN_KEY: ${{ secrets.AIROHA_SIGN_KEY }}
         run: ./scripts/build-an758x.sh "${{ matrix.target }}"
-
       - name: Upload ${{ matrix.target }}
         uses: actions/upload-artifact@v4
         with:
@@ -59,22 +66,55 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    # 关键改动：tag push 或 手动运行且填写了 release_tag 时都执行
+    if: |
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
     needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           pattern: an758x-*
           path: release
           merge-multiple: true
 
+      - name: List release files
+        run: ls -lh release/
+
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+            echo "title=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "title=" >> "$GITHUB_OUTPUT"
+          fi
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME" release/* --generate-notes
-          --repo "$GITHUB_REPOSITORY"
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          TITLE="${{ steps.tag.outputs.title }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="$TAG"
+          fi
+          # 如果 Release 已存在则先删除再重建（可选）
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, updating assets..."
+            gh release upload "$TAG" release/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" release/* \
+              --title "$TITLE" \
+              --generate-notes \
+              --repo "$GITHUB_REPOSITORY"
+          fi
