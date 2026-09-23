@@ -17,6 +17,14 @@ on:
         description: 'Release 标题（留空则使用 Tag 名）'
         required: false
         default: ''
+      release_type:
+        description: '发布类型（仅手动运行时生效）'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - release
 
 permissions:
   contents: read
@@ -89,32 +97,93 @@ jobs:
       - name: List release files
         run: ls -lh release/
 
-      - name: Determine tag name
-        id: tag
+      - name: Determine release metadata
+        id: meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手动运行：发布类型由输入决定，标题加 [测试] / 空前缀
             echo "name=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
             echo "title=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event.inputs.release_type }}" = "release" ]; then
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+              echo "label=正式发布" >> "$GITHUB_OUTPUT"
+            else
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+              echo "label=测试发布（手动）" >> "$GITHUB_OUTPUT"
+            fi
           else
+            # 自动构建（tag push）：一律按测试发布，并标注为自动构建
             echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
             echo "title=" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "label=测试发布（自动构建）" >> "$GITHUB_OUTPUT"
           fi
-      - name: Create release
+
+      - name: Build release title
+        id: title
+        env:
+          INPUT_TITLE: ${{ steps.meta.outputs.title }}
+          LABEL: ${{ steps.meta.outputs.label }}
+          TAG: ${{ steps.meta.outputs.name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ -n "$INPUT_TITLE" ]; then
+            TITLE="$INPUT_TITLE"
+          elif [ "$EVENT" = "workflow_dispatch" ]; then
+            TITLE="$TAG"
+          else
+            TITLE="[自动构建] $TAG"
+          fi
+          # 测试发布统一加前缀，便于在 Release 列表里一眼区分
+          case "$LABEL" in
+            测试发布*) TITLE="[测试] $TITLE" ;;
+          esac
+          echo "value=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "Release 标题: $TITLE"
+          echo "发布类型: $LABEL"
+
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ steps.tag.outputs.name }}"
-          TITLE="${{ steps.tag.outputs.title }}"
-          if [ -z "$TITLE" ]; then
-            TITLE="$TAG"
-          fi
-          # 如果 Release 已存在则先删除再重建（可选）
+          TAG="${{ steps.meta.outputs.name }}"
+          TITLE="${{ steps.title.outputs.value }}"
+          PRERELEASE="${{ steps.meta.outputs.prerelease }}"
+          LABEL="${{ steps.meta.outputs.label }}"
+          NOTES="release-notes.md"
+
+          {
+            echo "## 构建信息"
+            echo ""
+            echo "- 发布类型：**$LABEL**"
+            echo "- 触发方式：\`${{ github.event_name }}\`"
+            echo "- Commit：\`${{ github.sha }}\`"
+            echo "- 构建任务：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$NOTES"
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists, updating assets..."
             gh release upload "$TAG" release/* --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" release/* \
               --title "$TITLE" \
-              --generate-notes \
+              --notes-file "$NOTES" \
               --repo "$GITHUB_REPOSITORY"
           fi
+
+          # 统一设置 prerelease 标记（新建和已存在两种情况都覆盖）
+          gh release edit "$TAG" \
+            --title "$TITLE" \
+            --prerelease="$PRERELEASE" \
+            --repo "$GITHUB_REPOSITORY"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Release 结果"
+            echo ""
+            echo "- Tag: \`${{ steps.meta.outputs.name }}\`"
+            echo "- 标题: ${{ steps.title.outputs.value }}"
+            echo "- 发布类型: ${{ steps.meta.outputs.label }}"
+            echo "- Pre-release: \`${{ steps.meta.outputs.prerelease }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
