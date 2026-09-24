@@ -16,7 +16,7 @@ status_led: &{/leds/led-power} {
 	 */
 	factory {
 		volume-name = "factory";
-		volume-size = <0x240000>;
+		volume-size = <0x200000>;
 		volume-type = "static";
 		bootph-all;
 	};
