@@ -359,6 +359,21 @@ void bl2_plat_preload_setup(void)
 		}
 		else
 		{
+#if defined(IMAGE_BL23)
+			/*
+			 * The memmap pre-load only describes the boot-partition
+			 * layout.  With the FIP in the UBI 'fip' volume the image
+			 * loader reads it through the UBI device, and pages that
+			 * legitimately fail ECC inside the partition (erased, or
+			 * written by another owner of the flash) must not turn a
+			 * healthy UBI boot into an XMODEM recovery.
+			 */
+			if (plat_ecnt_fip_uses_ubi())
+			{
+				NOTICE("FIP source: UBI volume\n");
+			}
+			else
+#endif
 			if (flash_read(fip_offset, PLAT_ECNT_FIP_MAX_SIZE,
 				       (uint8_t *)PLAT_ECNT_FIP_BASE) !=
 			    FLASH_READ_STATUS_CORRECT) {
@@ -382,6 +397,11 @@ void bl2_plat_preload_setup(void)
 #endif
 		{
 #if defined(IMAGE_BL23)
+			/* The UBI reader validates the ToC of the volume it loads. */
+			if (plat_ecnt_fip_uses_ubi())
+			{
+				break;
+			}
 			fip_preload_xmodem_recover("FIP preload TOC header is invalid");
 #else
 			panic();
