@@ -22,10 +22,6 @@ status_led: &{/leds/led-power} {
 	};
 };
 
-&spi_nand {
-	/* Keep the board-specific NAND compatible selected during U-Boot fixups. */
-	compatible = "winbond,w25n02kv", "spi-nand";
-};
 
 &gdm1 {
 	/* Recovery networking requires gdm1 before relocation. */
