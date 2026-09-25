@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: '手动运行时创建的 Release Tag（留空则只构建不发布）'
+        description: '手动运行时创建的 Release Tag（留空则按时间自动生成 auto-YYYYMMDD-HHMMSS）'
         required: false
         default: ''
       release_name:
-        description: 'Release 标题（留空则使用 Tag 名）'
+        description: 'Release 标题（留空则使用「手动构建 时间」）'
         required: false
         default: ''
       release_type:
@@ -138,12 +138,12 @@ jobs:
           if-no-files-found: error
 
   release:
-    # tag 推送 / PR / 手动运行（填写 release_tag）时发布；仓库分支更新不发布
+    # tag 推送 / PR / 手动运行 都发布（手动运行留空 release_tag 时自动生成时间 Tag）
     # 注意：来自 fork 的 PR 因 GITHUB_TOKEN 只读，会在下面自动跳过发布
     if: |
       startsWith(github.ref, 'refs/tags/') ||
       github.event_name == 'pull_request' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '')
+      github.event_name == 'workflow_dispatch'
     needs: [prepare, build]
     runs-on: ubuntu-24.04
     permissions:
@@ -168,6 +168,10 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
+          # 输入统一走 env，避免特殊字符破坏 shell 语法
+          INPUT_RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          INPUT_RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+          INPUT_RELEASE_NAME: ${{ github.event.inputs.release_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -185,9 +189,20 @@ jobs:
             echo "trigger=PR #$PR_NUMBER（$PR_BRANCH 分支，@$PR_AUTHOR）" >> "$GITHUB_OUTPUT"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
             # 手动运行：发布类型由输入决定
-            echo "name=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
-            echo "title=${{ github.event.inputs.release_name }}" >> "$GITHUB_OUTPUT"
-            if [ "${{ github.event.inputs.release_type }}" = "release" ]; then
+            # 未填 release_tag → 按 UTC+8 时间自动生成 auto-YYYYMMDD-HHMMSS
+            TAG="$INPUT_RELEASE_TAG"
+            if [ -z "$TAG" ]; then
+              TAG="auto-$(date -u -d '+8 hours' '+%Y%m%d-%H%M%S')"
+              echo "未填写 release_tag，自动生成时间 Tag: $TAG"
+            fi
+            # 清洗非法字符，保证是合法的 git tag
+            TAG="$(printf '%s' "$TAG" | tr -c 'A-Za-z0-9._-' '-' | sed 's/^-\+//; s/-\+$//; s/-\+/-/g')"
+            if [ -z "$TAG" ]; then
+              TAG="auto-$(date -u +%Y%m%d-%H%M%S)"
+            fi
+            echo "name=$TAG" >> "$GITHUB_OUTPUT"
+            echo "title=$INPUT_RELEASE_NAME" >> "$GITHUB_OUTPUT"
+            if [ "$INPUT_RELEASE_TYPE" = "release" ]; then
               echo "prerelease=false" >> "$GITHUB_OUTPUT"
               echo "label=正式发布" >> "$GITHUB_OUTPUT"
             else
@@ -233,7 +248,8 @@ jobs:
           elif [ -n "$INPUT_TITLE" ]; then
             TITLE="$INPUT_TITLE"
           elif [ "$EVENT" = "workflow_dispatch" ]; then
-            TITLE="$TAG"
+            # 未填标题 → 用可读的构建时间（UTC+8）
+            TITLE="手动构建 $(date -u -d '+8 hours' '+%Y-%m-%d %H:%M') CST"
           else
             TITLE="[自动构建] $TAG"
           fi
