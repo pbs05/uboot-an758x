@@ -176,9 +176,14 @@ jobs:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          # 只有 PR 事件才可能来自 fork；非 PR 事件下该表达式恒为 true（'' != 仓库名），必须单独处理
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
-          echo "fork=$IS_FORK" >> "$GITHUB_OUTPUT"
+          # 双保险：非 PR 事件一律视为非 fork，避免误跳过发布
+          FORK="$IS_FORK"
+          [ "$EVENT" = "pull_request" ] || FORK="false"
+          echo "fork=$FORK" >> "$GITHUB_OUTPUT"
+          echo "判定结果: event=$EVENT fork=$FORK"
 
           if [ "$EVENT" = "pull_request" ]; then
             # PR 构建：使用 pr-<编号> 作为滚动 Tag，同一 PR 反复推送只会保留一条 Release
