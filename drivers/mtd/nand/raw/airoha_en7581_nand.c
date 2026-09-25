@@ -1408,10 +1408,15 @@ static int airoha_nfc_block_bad(struct mtd_info *mtd, loff_t ofs)
 		if (ret)
 			return ret;
 
-		if (likely(nand->badblockbits == 8))
-			ret = (u8)bad != 0xFF;
-		else
-			ret = hweight8((u8)bad) < nand->badblockbits;
+		/* Raw OOB reads fill one marker byte on x8 NAND and a word on x16 NAND. */
+		if (likely(nand->badblockbits == 8)) {
+			if (nand->options & NAND_BUSWIDTH_16)
+				ret = bad != 0xffff;
+			else
+				ret = (bad & 0xff) != 0xff;
+		} else {
+			ret = hweight8(bad & 0xff) < nand->badblockbits;
+		}
 
 		i++;
 		ofs += mtd->writesize;
