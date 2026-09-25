@@ -22,7 +22,11 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	/* 512 MiB is the fallback until BL2 publishes the detected capacity. */
+	/*
+	 * Stock U-Boot env carries dram_limit=512M, so 512 MiB is not only a
+	 * fallback: it is the capacity the vendor bootloader publishes. Raise
+	 * it only if the board really reports more DRAM.
+	 */
 	memory@80000000 {
 		device_type = "memory";
 		reg = <0x0 0x80000000 0x0 0x20000000>;
@@ -34,6 +38,13 @@
 		key-reset {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
+			/*
+			 * TODO(verify): the stock flash records no button GPIO.
+			 * GPIO0 is the TCLinux SDK default used by every other
+			 * AN7581 TCLinux-derived board (ZN504XG-D, UNG00A); the
+			 * recovery entry point depends on it, so re-check on the
+			 * first boot (hold Reset ~1 s after power-on).
+			 */
 			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
 		};
 	};
@@ -42,15 +53,22 @@
 		compatible = "gpio-leds";
 
 		/*
-		 * TODO(bring-up): confirm the GPIO line from the stock firmware
-		 * or by probing. Every other AN7581 board labels the power LED
-		 * green:power; keep the name in sync with
-		 * arch/arm/dts/an7581-h3c-hm2004-du-u-boot.dtsi (status_led) and
-		 * with bootled_status in the board env file.
+		 * The LED lines come from the stock U-Boot env:
+		 *   power_gpio=1515, ether_gpio=0c, dsl_gpio=13, internet_gpio=14
+		 * The vendor encoding is hexadecimal byte pairs: multi_upgrade_gpio
+		 * is "110f1011121314181c22000000000000", i.e. 17,15,16,17,18,19,20,
+		 * 24,28,34. So the power entry may read as 0x15 = 21 instead of the
+		 * decimal 15 used below. 15 is kept because the Linux tree
+		 * (target/linux/airoha/dts/an7581-h3c-hm2004-du.dts) uses the same
+		 * number; if the power LED stays dark, switch both trees to 21.
+		 *
+		 * Active-low follows the common AN7581 panel wiring. Keep the
+		 * label in sync with bootled_status in the board env file and with
+		 * status_led in arch/arm/dts/an7581-h3c-hm2004-du-u-boot.dtsi.
 		 */
 		led-power {
 			label = "green:power";
-			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+			gpios = <&en7581_pinctrl 15 GPIO_ACTIVE_LOW>;
 			default-state = "keep";
 		};
 	};
@@ -66,8 +84,10 @@
 
 &spi_nand {
 	/*
-	 * TODO(bring-up): 256 MiB (2 GiB-bit) SPI-NAND. Read the JEDEC ID from
-	 * the U-Boot log and replace this compatible with the real part, e.g.
+	 * TODO(bring-up): 256 MiB (2 Gibit) SPI-NAND, 2048-byte pages and
+	 * 128 KiB erase blocks. U-Boot identifies the part from its JEDEC ID,
+	 * so this compatible only selects optional quirks; read the ID from
+	 * the U-Boot log and replace it with the real part, e.g.
 	 *   "winbond,w25n02kv" / "esmt,f50l2g41xa" / "macronix,mx35lf2ge4ad"
 	 */
 	compatible = "winbond,w25n02kv", "spi-nand";
