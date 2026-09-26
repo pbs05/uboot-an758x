@@ -11,8 +11,8 @@ status_led: &{/leds/led-power} {
 &recovery_layout {
 	factory {
 		volume-name = "factory";
-		volume-size = <0x140000>;
-		volume-type = "dynamic";
+		volume-size = <0x100000>;
+		volume-type = "static";
 		bootph-all;
 	};
 };
