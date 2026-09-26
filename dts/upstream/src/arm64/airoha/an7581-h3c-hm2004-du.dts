@@ -58,9 +58,11 @@
 		 * The vendor encoding is hexadecimal byte pairs: multi_upgrade_gpio
 		 * is "110f1011121314181c22000000000000", i.e. 17,15,16,17,18,19,20,
 		 * 24,28,34. So the power entry may read as 0x15 = 21 instead of the
-		 * decimal 15 used below. 15 is kept because the Linux tree
-		 * (target/linux/airoha/dts/an7581-h3c-hm2004-du.dts) uses the same
-		 * number; if the power LED stays dark, switch both trees to 21.
+		 * decimal 15 used below. On-board measurement settled it the other
+		 * way: 17 is the power LED, 15 is the wireless LED, and 21 does
+		 * not light anything. Both this tree and the Linux tree
+		 * (target/linux/airoha/dts/an7581-h3c-hm2004-du.dts) now use 17
+		 * for power and 15 for wlan.
 		 *
 		 * Active-low follows the common AN7581 panel wiring. Keep the
 		 * label in sync with bootled_status in the board env file and with
@@ -68,6 +70,12 @@
 		 */
 		led-power {
 			label = "green:power";
+			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+
+		led-wlan {
+			label = "green:wlan";
 			gpios = <&en7581_pinctrl 15 GPIO_ACTIVE_LOW>;
 			default-state = "keep";
 		};
