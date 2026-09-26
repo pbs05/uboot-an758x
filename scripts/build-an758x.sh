@@ -5,7 +5,7 @@ set -eu
 usage()
 {
 	cat >&2 <<'EOF'
-usage: build-an758x.sh <hg5382a|hg5585f-ct|hg5585f-cu|xg2010g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf>
+usage: build-an758x.sh <hg5382a|hg5585f-ct|hg5585f-cu|xg2010g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf|hm2004-du>
 
 Required environment:
   CROSS_COMPILE         AArch64 toolchain prefix
@@ -100,6 +100,12 @@ xg-040g-mf)
 	defconfig=an7583_nokia_xg-040g-mf_defconfig
 	artifact_prefix=an7583-nokia-xg-040g-mf
 	soc=AN7583
+	parallel_nand=0
+	;;
+hm2004-du)
+	defconfig=an7581_h3c_hm2004-du_defconfig
+	artifact_prefix=an7581-h3c-hm2004-du
+	soc=EN7581
 	parallel_nand=0
 	;;
 *)
