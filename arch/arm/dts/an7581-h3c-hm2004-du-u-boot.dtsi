@@ -9,23 +9,9 @@ status_led: &{/leds/led-power} {
 #include "an758x-status-led-u-boot.dtsi"
 
 &recovery_layout {
-	/*
-	 * factory carries the stock "reservearea" (mtd14) content, which is
-	 * exactly 2359296 (0x240000) bytes on HM2004-DU. The TCLinux
-	 * production offsets are preserved inside it:
-	 *   0x04c000  MT7916 EEPROM (4096 bytes, magic 0x7916)
-	 *   0x080000  gzip copy of ctromfile.cfg (holds AL-MAC)
-	 *   0x14102c  GPON serial number (12 ASCII bytes)
-	 *   0x141100  base MAC slot (unprogrammed, 0xff filled from factory)
-	 *   0x1c0400  optical calibration (256-byte A0 + 256-byte A2 page)
-	 *
-	 * The volume must stay dynamic: the porting procedure rewrites the
-	 * base MAC at 0x141100 with dd, and a UBI static volume is read-only
-	 * for that kind of in-place write.
-	 */
 	factory {
 		volume-name = "factory";
-		volume-size = <0x240000>;
+		volume-size = <0x140000>;
 		volume-type = "dynamic";
 		bootph-all;
 	};
