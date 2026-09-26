@@ -22,11 +22,6 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	/*
-	 * Stock U-Boot env carries dram_limit=512M, so 512 MiB is not only a
-	 * fallback: it is the capacity the vendor bootloader publishes. Raise
-	 * it only if the board really reports more DRAM.
-	 */
 	memory@80000000 {
 		device_type = "memory";
 		reg = <0x0 0x80000000 0x0 0x20000000>;
@@ -38,36 +33,12 @@
 		key-reset {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
-			/*
-			 * TODO(verify): the stock flash records no button GPIO.
-			 * GPIO0 is the TCLinux SDK default used by every other
-			 * AN7581 TCLinux-derived board (ZN504XG-D, UNG00A); the
-			 * recovery entry point depends on it, so re-check on the
-			 * first boot (hold Reset ~1 s after power-on).
-			 */
 			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
 		};
 	};
 
 	leds {
 		compatible = "gpio-leds";
-
-		/*
-		 * The LED lines come from the stock U-Boot env:
-		 *   power_gpio=1515, ether_gpio=0c, dsl_gpio=13, internet_gpio=14
-		 * The vendor encoding is hexadecimal byte pairs: multi_upgrade_gpio
-		 * is "110f1011121314181c22000000000000", i.e. 17,15,16,17,18,19,20,
-		 * 24,28,34. So the power entry may read as 0x15 = 21 instead of the
-		 * decimal 15 used below. On-board measurement settled it the other
-		 * way: 17 is the power LED, 15 is the wireless LED, and 21 does
-		 * not light anything. Both this tree and the Linux tree
-		 * (target/linux/airoha/dts/an7581-h3c-hm2004-du.dts) now use 17
-		 * for power and 15 for wlan.
-		 *
-		 * Active-low follows the common AN7581 panel wiring. Keep the
-		 * label in sync with bootled_status in the board env file and with
-		 * status_led in arch/arm/dts/an7581-h3c-hm2004-du-u-boot.dtsi.
-		 */
 		led-power {
 			label = "green:power";
 			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
@@ -91,13 +62,7 @@
 };
 
 &spi_nand {
-	/*
-	 * TODO(bring-up): 256 MiB (2 Gibit) SPI-NAND, 2048-byte pages and
-	 * 128 KiB erase blocks. U-Boot identifies the part from its JEDEC ID,
-	 * so this compatible only selects optional quirks; read the ID from
-	 * the U-Boot log and replace it with the real part, e.g.
-	 *   "winbond,w25n02kv" / "esmt,f50l2g41xa" / "macronix,mx35lf2ge4ad"
-	 */
+
 	compatible = "winbond,w25n02kv", "spi-nand";
 
 	partitions {
@@ -123,11 +88,6 @@
 	status = "okay";
 };
 
-/*
- * U-Boot recovery only needs gdm1 (internal fixed-link to the switch), so the
- * 2.5G EN8811H PHY and the three GE switch ports are intentionally left out of
- * this tree; they belong to the Linux DTS (target/linux/airoha/dts).
- */
 &gdm1 {
 	status = "okay";
 };
