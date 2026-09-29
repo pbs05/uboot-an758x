@@ -15,6 +15,7 @@ Hold Reset about one second after power-on to enter Web recovery.
 | `hg5382a` | FiberHome HG5382A | AN7581 | Parallel NAND |
 | `hg5585f-ct` | FiberHome HG5585F CT | AN7581 | Parallel NAND |
 | `hg5585f-cu` | FiberHome HG5585F CU | AN7581 | Parallel NAND |
+| `hm2004-du` | H3C HM2004-DU | AN7581 | SPI NAND |
 | `xg2010g` | Gemtek XG2010G | AN7581 | SPI NAND |
 | `xr1710g` | Gemtek XR1710G | AN7581 | SPI NAND |
 | `zn504xg-d` | ZNXT ZN504XG-D | AN7581 | SPI NAND |
