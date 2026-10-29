@@ -8,9 +8,9 @@
  * legacy, matches Linux mainline behavior). The framework's
  * nand_manuf_ids[] table maps 0xc8 to this ops structure. The detect
  * hook discriminates GigaDevice SLC by examining id.data[4/5] and,
- * when matched, switches chip->manufacturer.desc to point at
- * gigadevice_nand_manuf_ops so the user sees the correct vendor name
- * and any GigaDevice-specific quirks apply.
+ * when matched, switches chip->manufacturer.desc to a GigaDevice
+ * manufacturer entry (see gigadevice_nand_manuf below) so the user sees
+ * the correct vendor name and any GigaDevice-specific quirks apply.
  *
  * Detection pattern is heuristic: GigaDevice SLC series such as GD5F1GQ4
  * encode 0xc8 in the high nibble of id.data[4]. Validate against real
@@ -20,18 +20,30 @@
 
 #include <linux/mtd/rawnand.h>
 
+/*
+ * GigaDevice SLC shares maker ID 0xc8 with ESMT; there is no separate
+ * entry in nand_manuf_ids[] (0xc8 maps to ESMT), so describe the
+ * GigaDevice identity here and point chip->manufacturer.desc at it when
+ * the detect hook matches the GigaDevice encoding.
+ */
+static const struct nand_manufacturer gigadevice_nand_manuf = {
+	.id = 0xc8,
+	.name = "GigaDevice",
+	.ops = &gigadevice_nand_manuf_ops,
+};
+
 static void esmt_nand_decode_id(struct nand_chip *chip)
 {
 	nand_decode_ext_id(chip);
 
 	/*
 	 * GigaDevice SLC discrimination: share 0xc8 maker ID with ESMT.
-	 * Switch to gigadevice_nand_manuf_ops when id.data[4] high nibble
-	 * matches the GigaDevice encoding.
+	 * Switch to the GigaDevice manufacturer identity when id.data[4]
+	 * high nibble matches the GigaDevice encoding.
 	 */
 	if (chip->id.len >= 5 &&
 	    (chip->id.data[4] & 0xf0) == 0xc0)
-		chip->manufacturer.desc = &gigadevice_nand_manuf_ops;
+		chip->manufacturer.desc = &gigadevice_nand_manuf;
 }
 
 static int esmt_nand_init(struct nand_chip *chip)
