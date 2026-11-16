@@ -1839,7 +1839,14 @@ http_post_request(struct pbuf *inp, struct http_state *hs,
     /* search for "Content-Length: " */
 #define HTTP_HDR_CONTENT_LEN                "Content-Length: "
 #define HTTP_HDR_CONTENT_LEN_LEN            16
-#define HTTP_HDR_CONTENT_LEN_DIGIT_MAX_LEN  10
+/* lwip_strnstr() needs the whole CRLF token (2 bytes) to fit inside this
+ * window, so the window must cover the digit run *plus* the CRLF.  The
+ * previous value of 10 silently rejected every POST whose Content-Length
+ * was 100MB or larger (9 digits), e.g. whole-flash images of 256MB NAND
+ * (Content-Length 0xEC00000 = 247463936), by failing to find the CRLF and
+ * returning ERR_ARG, which closed the connection without a response.  A
+ * u32 Content-Length needs at most 10 digits + 2-byte CRLF = 12. */
+#define HTTP_HDR_CONTENT_LEN_DIGIT_MAX_LEN  16
     char *scontent_len = lwip_strnstr(uri_end + 1, HTTP_HDR_CONTENT_LEN, crlfcrlf - (uri_end + 1));
     if (scontent_len != NULL) {
       char *scontent_len_end = lwip_strnstr(scontent_len + HTTP_HDR_CONTENT_LEN_LEN, CRLF, HTTP_HDR_CONTENT_LEN_DIGIT_MAX_LEN);

@@ -84,3 +84,8 @@ Subsequent upgrades use **Install system / 刷写系统** directly.
 - [Ansuel/atf-airoha](https://github.com/Ansuel/atf-airoha)
 - [mkshevetskiy/atf-airoha](https://github.com/mkshevetskiy/atf-airoha)
 - [Yuzhii0718/atf-airoha](https://github.com/Yuzhii0718/atf-airoha)
+
+2026.10.30
+Fix whole-flash restore: allow uploading backup files ≥ 100MB
+修复整盘刷回无法上传 100MB 以上备份文件的问题
+"整盘刷回"（Whole Flash restore）对 100MB 以上的备份文件（比如 256MB 机型的 236MB 整盘备份）会直接失败：上传一开始就报"连接中断"，文件根本没传上去。这次修复一行代码解决。
