@@ -12,6 +12,7 @@ Hold Reset about one second after power-on to enter Web recovery.
 
 | Target / 构建目标 | Device / 设备 | SoC | Storage / 存储 |
 | --- | --- | --- | --- |
+| `an4475-g2` | FiberHome AN4475-G2 | AN7581 | SPI NAND |
 | `hg5382a` | FiberHome HG5382A | AN7581 | Parallel NAND |
 | `hg5585f-ct` | FiberHome HG5585F CT | AN7581 | Parallel NAND |
 | `hg5585f-cu` | FiberHome HG5585F CU | AN7581 | Parallel NAND |

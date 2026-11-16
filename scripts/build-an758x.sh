@@ -5,7 +5,7 @@ set -eu
 usage()
 {
 	cat >&2 <<'EOF'
-usage: build-an758x.sh <hg5382a|hg5585f-ct|hg5585f-cu|hm2004-du|xg2010g|xr1710g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf>
+usage: build-an758x.sh <an4475-g2|hg5382a|hg5585f-ct|hg5585f-cu|hm2004-du|xg2010g|xr1710g|zn504xg-d|zn515xg-d|ung00a|xg-040g-md|xg-040g-tf|xg-040g-mf>
 
 Required environment:
   CROSS_COMPILE         AArch64 toolchain prefix
@@ -42,6 +42,12 @@ output_root="$(CDPATH= cd -- "$output_root" && pwd)"
 emmc=0
 
 case "$board" in
+an4475-g2)
+	defconfig=an7581_fiberhome_an4475-g2_defconfig
+	artifact_prefix=an7581-fiberhome-an4475-g2
+	soc=EN7581
+	parallel_nand=0
+	;;
 hg5382a)
 	defconfig=an7581_fiberhome_hg5382a_defconfig
 	artifact_prefix=an7581-fiberhome-hg5382a

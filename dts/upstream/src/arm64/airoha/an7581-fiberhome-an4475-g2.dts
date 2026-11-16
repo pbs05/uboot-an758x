@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+/* BL2 and TF-A reserve the first 2 MiB of DRAM. */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include "en7581.dtsi"
+
+/ {
+	model = "FiberHome AN4475-G2";
+	/* AN7581FP (EN7581 family), 512 MiB PCDDR4-2666, 512 MiB SPI-NAND. */
+	compatible = "fiberhome,an4475-g2", "airoha,an7581", "airoha,en7581";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x20000000>;
+	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		/* BSP IN_SYS_RESET=0; vendor FDT gpio-keys-polled GPIO0 low.
+		 * Long press (>~8 s) reboots the box - U-Boot failsafe only
+		 * needs a short press. */
+		key-reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&en7581_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+
+		/* BSP IN_WIFI_SET=17 (IN_WPS_SET=-1), idle high. */
+		key-wlan {
+			label = "wlan";
+			linux,code = <KEY_WLAN>;
+			gpios = <&en7581_pinctrl 17 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		/* "Power LED GPIO 35" (vendor U-Boot) / "pwr_led GPIO: 35"
+		 * (vendor kernel), power_gpio=23 hex, BSP OUT_POWER_LED=35.
+		 * Referenced as status_led by the U-Boot recovery overlay. */
+		led-power {
+			label = "green:power";
+			gpios = <&en7581_pinctrl 35 GPIO_ACTIVE_LOW>;
+			default-state = "keep";
+		};
+
+		/* Deliberately no other GPIO LEDs: system / VPN / optical /
+		 * LOS / downstream-PON / WLAN panel LEDs are all -1 in the
+		 * vendor BSP GPIO table; the PON LED is PWM-driven. */
+	};
+};
+
+&en7581_pinctrl {
+	gpio-ranges = <&en7581_pinctrl 0 13 50>;
+};
+
+&snfi {
+	status = "okay";
+};
+
+&spi_nand {
+	/* S35ML04G3: SkyHigh 4 Gbit / 512 MiB, mfr 0x01 dev 0x35,
+	 * 2 KiB page / 128 B OOB / 128 KiB eraseblock. U-Boot matches it
+	 * by ID through drivers/mtd/nand/spi/skyhigh.c (S35ML04G300),
+	 * the compatible is informational. */
+	compatible = "skyhigh,s35ml04g3", "spi-nand";
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bl2";
+			/* BootROM reads the BL2 FIP at offset 0x800 in the first
+			 * eraseblock; keep those bytes intact when flashing. */
+			reg = <0x00000000 0x00020000>;
+		};
+
+		partition@20000 {
+			label = "ubi";
+			/* Zero length applies the MTD MTDPART_SIZ_FULL convention. */
+			reg = <0x00020000 0x00000000>;
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+};

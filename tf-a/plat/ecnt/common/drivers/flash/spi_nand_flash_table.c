@@ -1406,6 +1406,36 @@ const struct SPI_NAND_FLASH_INFO_T spi_nand_flash_tables[] = {
 		extend_dev_id:				_SPI_NAND_DUMMY_EXTEND_DEVICE_ID,
 	},
 
+	/* S35ML04G3: 4 Gbit / 512 MiB SPI-NAND on FiberHome AN4475-G2.
+	 * Same SkyHigh family and geometry as S35ML02G3 (2 KiB page,
+	 * 128 B OOB, 128 KiB eraseblock, single die); only the device ID
+	 * and capacity differ. mfr 0x01, dev 0x35, size 0x20000000. */
+	{
+		mfr_id:						_SPI_NAND_MANUFACTURER_ID_SKYHIGH,
+		dev_id:						_SPI_NAND_DEVICE_ID_S35ML04G3,
+		ptr_name:					(const u8 *) "_SPI_NAND_DEVICE_ID_S35ML04G3",
+		device_size:				_SPI_NAND_CHIP_SIZE_4GBIT,
+		page_size:					_SPI_NAND_PAGE_SIZE_2KBYTE,
+		oob_size:					_SPI_NAND_OOB_SIZE_128BYTE,
+		erase_size: 				_SPI_NAND_BLOCK_SIZE_128KBYTE,
+		dummy_mode: 				SPI_NAND_FLASH_READ_DUMMY_BYTE_APPEND,
+		read_mode:					SPI_NAND_FLASH_READ_SPEED_MODE_DUAL,
+		write_mode: 				SPI_NAND_FLASH_WRITE_SPEED_MODE_SINGLE,
+		oob_free_layout :			&ooblayout_type4,
+		feature:					SPI_NAND_FLASH_BLANK_PAGE_FIXUP | SPI_NAND_FLASH_ERASE_STATISTICS,
+		die_num:					1,
+		ecc_fail_check_info:		{0x30, 0x30},
+		write_en_type:				SPI_NAND_FLASH_WRITE_EN_FIRST,
+		unlock_block_info:			{0x7A, 0x2},
+		quad_en:					{0x00, 0x00},
+		ecc_en:						{_SPI_NAND_ADDR_FEATURE, 0x10, 0x10},
+#ifdef TCSUPPORT_NAND_FLASH_OTP
+		otp_page_num:				-1,
+#endif
+		extend_dev_id:				_SPI_NAND_DUMMY_EXTEND_DEVICE_ID,
+	},
+
+
 #if 0 /* not verify */
 {
 		mfr_id: 					_SPI_NAND_MANUFACTURER_ID_MICRON,

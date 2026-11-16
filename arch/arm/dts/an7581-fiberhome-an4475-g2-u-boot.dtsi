@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+#include "an7581-u-boot.dtsi"
+#include "an758x-recovery-layout-u-boot.dtsi"
+
+status_led: &{/leds/led-power} {
+};
+
+#include "an758x-status-led-u-boot.dtsi"
+
+&recovery_layout {
+	factory {
+		volume-name = "factory";
+		/* AN4-2MiB container: 1.29 MiB vendor EEPROM @0x40000, eleven
+		 * 4 KiB calibration slots @0x1A0000 and the 7680-byte mt76
+		 * EEPROM @0x1AB000. A 1 MiB volume truncates the container. */
+		volume-size = <0x200000>;
+		volume-type = "dynamic";
+		bootph-all;
+	};
+};
+
+&gdm1 {
+	/* Recovery networking requires gdm1 before relocation. */
+	status = "okay";
+	bootph-all;
+};

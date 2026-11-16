@@ -219,6 +219,7 @@
 #define _SPI_NAND_DEVICE_ID_DS35Q1GA		0x71
 #define _SPI_NAND_DEVICE_ID_DS35M1GA		0x21
 #define _SPI_NAND_DEVICE_ID_S35ML02G3		0x25
+#define _SPI_NAND_DEVICE_ID_S35ML04G3		0x35
 
 /* SPI NAND register address of command set */
 #define _SPI_NAND_ADDR_EXTEND_BFD			0x10	/* Address of extend ECC Bit Flip count Detection*/
