@@ -71,7 +71,7 @@ hm2004-du)
 	artifact_prefix=an7581-h3c-hm2004-du
 	soc=EN7581
 	parallel_nand=0
-	;;	
+	;;
 xg2010g)
 	defconfig=an7581_gemtek_xg2010g_defconfig
 	artifact_prefix=an7581-gemtek-xg2010g
@@ -83,7 +83,7 @@ xr1710g)
 	artifact_prefix=an7581-gemtek-xr1710g
 	soc=EN7581
 	parallel_nand=0
-	;;	
+	;;
 zn504xg-d)
 	defconfig=an7581_znxt_zn504xg-d_defconfig
 	artifact_prefix=an7581-znxt-zn504xg-d

@@ -59,9 +59,8 @@
 			default-state = "keep";
 		};
 
-		/* Deliberately no other GPIO LEDs: system / VPN / optical /
-		 * LOS / downstream-PON / WLAN panel LEDs are all -1 in the
-		 * vendor BSP GPIO table; the PON LED is PWM-driven. */
+		/* The remaining panel LEDs are absent from the BSP GPIO map;
+		 * the PON LED uses PWM. */
 	};
 };
 
