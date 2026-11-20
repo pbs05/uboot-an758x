@@ -74,9 +74,9 @@
 #define VAL_1               (1)
 
 #if defined(TCSUPPORT_CPU_EN7581) || defined(TCSUPPORT_CPU_AN7583)
-static unsigned char cpu_freq_config_pcw[]=     { 0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E, 0x20, 0x22, 0x24, 0x26, 0x14, 0x15, 0x16, 0x17, 0x18};
-static unsigned char cpu_freq_config_posdiv[]=  {VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0};
-static char *clk_src_name[]={"xtal(50MHz)","armpll(500~1200MHz)","pll1(540MHz)","pll2(400MHz)"};
+static unsigned char cpu_freq_config_pcw[]=     { 0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E, 0x20, 0x22, 0x24, 0x26, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C};
+static unsigned char cpu_freq_config_posdiv[]=  {VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0,VAL_0};
+static char *clk_src_name[]={"xtal(50MHz)","armpll(500~1400MHz)","pll1(540MHz)","pll2(400MHz)"};
 #elif defined(TCSUPPORT_CPU_AN7552)
 static unsigned char cpu_freq_config_pcw[]=     { 0x14, 0x16, 0x18, 0x1A, 0x1C, 0x1E, 0x20, 0x22, 0x24, 0x26, 0x14};
 static unsigned char cpu_freq_config_posdiv[]=  {VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_1,VAL_0};
@@ -87,7 +87,7 @@ static unsigned char cpu_freq_config_xtal20M[]= {0x32, 0x37, 0x3C, 0x41, 0x46, 0
 static char *clk_src_name[]={"xtal(20/25MHz)","armpll(500~950MHz)","pll1(540MHz)","pll2(500MHz)"};
 #endif
 //static unsigned int  voltage_config[]         ={ 115,  115,  115,  115,  115,  115,  125,  125,  125,  125};	//YMC mark for new AVS FW
-static unsigned int  armpll_clk_MHz[]         = {  500,  550,  600,  650,  700,  750,  800,  850,  900,  950, 1000, 1050, 1100, 1150, 1200};
+static unsigned int  armpll_clk_MHz[]         = {  500,  550,  600,  650,  700,  750,  800,  850,  900,  950, 1000, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400};
 
 static unsigned int clk_divider_config[]={0x0, 0xa, 0xb, 0x1d};
 
