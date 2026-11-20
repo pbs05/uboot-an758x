@@ -5,10 +5,9 @@
  * running system and is not driven by U-Boot, so this device tree is
  * otherwise identical to an7581-nokia-xg-040g-tf.dts.
  *
- * "nokia,xg-040g-tf-ubi" is kept as a fallback because the system firmware
- * is shared with the XG-040G-TF. The web recovery validates an uploaded FIT
- * against this board's compatible list (of_machine_is_compatible()); without
- * the fallback the shared image is rejected as "does not match this board".
+ * "nokia,xg-140g-tf-ubi" must be the first compatible: the web recovery
+ * validates an uploaded FIT's first compatible against this board's
+ * compatible list via of_machine_is_compatible().
  */
 /dts-v1/;
 
@@ -19,8 +18,7 @@
 
 / {
 	model = "Nokia XG-140G-TF";
-	compatible = "nokia,xg-140g-tf-ubi", "nokia,xg-040g-tf-ubi",
-		     "airoha,an7581", "airoha,en7581";
+	compatible = "nokia,xg-140g-tf-ubi", "airoha,an7581", "airoha,en7581";
 
 	aliases {
 		serial0 = &uart1;

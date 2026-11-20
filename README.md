@@ -27,13 +27,6 @@ Hold Reset about one second after power-on to enter Web recovery.
 | `xg-140g-tf` | Nokia XG-140G-TF | AN7581 | SPI NAND |
 | `xg-040g-mf` | Nokia XG-040G-MF | AN7583 | SPI NAND |
 
-> `xg-140g-tf` is identical to `xg-040g-tf` except for an extra telephone
-> (voice/FXS) port, which U-Boot does not drive. Both share the same XG-040G-TF
-> system firmware images; only the bootloader artifacts are named per model.
->
-> `xg-140g-tf` 与 `xg-040g-tf` 硬件相同，仅多一个语音（电话/FXS）口；U-Boot 不涉及
-> 该接口，两者共用同一套 XG-040G-TF 系统固件镜像，仅引导文件按机型单独命名。
-
 ## Build / 构建
 
 ```sh
