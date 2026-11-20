@@ -19,6 +19,10 @@ enum e_cpu_freq {
     cpu_freq_1100M,
     cpu_freq_1150M,
     cpu_freq_1200M,
+    cpu_freq_1250M,	/* experimental, outside public spec */
+    cpu_freq_1300M,	/* experimental, outside public spec */
+    cpu_freq_1350M,	/* experimental, outside public spec */
+    cpu_freq_1400M,	/* experimental, outside public spec */
 #endif
     cpu_freq_last
 };

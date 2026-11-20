@@ -310,6 +310,7 @@ void ecnt_cpu_speedup(void)
 #if defined(TCSUPPORT_CPU_EN7581)
 	else if(isEN7581)
 	{
+		/* Boot at 1200 MHz; 1250-1400 are left to the cpufreq OPP */
    	     en7523_armpll_set(cpu_freq_1200M);
 	}
 #endif
