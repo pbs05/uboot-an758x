@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+
+#include "an7581-u-boot.dtsi"
+#include "an758x-recovery-layout-u-boot.dtsi"
+
+status_led: &{/leds/led-power-green} {
+};
+
+#include "an758x-status-led-u-boot.dtsi"
+
+&recovery_layout {
+	bosa {
+		volume-name = "bosa";
+		volume-size = <0x40000>;
+		volume-type = "dynamic";
+		bootph-all;
+	};
+
+	ri {
+		volume-name = "ri";
+		volume-size = <0x40000>;
+		volume-type = "dynamic";
+		bootph-all;
+	};
+};
+
+&gdm1 {
+	status = "okay";
+	bootph-all;
+};

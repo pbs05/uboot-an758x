@@ -24,6 +24,7 @@ Hold Reset about one second after power-on to enter Web recovery.
 | `ung00a` | UnionMan UNG00A | AN7581 | SPI NAND |
 | `xg-040g-md` | Nokia XG-040G-MD | AN7581 | SPI NAND |
 | `xg-040g-tf` | Nokia XG-040G-TF | AN7581 | SPI NAND |
+| `xg-140g-tf` | Nokia XG-140G-TF | AN7581 | SPI NAND |
 | `xg-040g-mf` | Nokia XG-040G-MF | AN7583 | SPI NAND |
 
 ## Build / 构建
